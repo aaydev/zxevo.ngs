@@ -1,0 +1,359 @@
+
+; LAST UPDATE 26.11.2024 savelij
+
+; SD & MP3 функции по номерам
+ INIT_VAR
+ SETVAR Sd_init		; инит SD карты
+ SETVAR Sd__off		; снятие выбора
+ SETVAR Rdsingl		; читать 1 сектор
+ SETVAR Rdmulti		; читать "A" сектор
+ SETVAR Wrsingl		; записать 1 сектор - нету
+ SETVAR Wrmulti		; записать "A" секторов - нету
+ SETVAR Avtodet		; автодетект GS/NeoGS
+ SETVAR Freqnc		; установка частоты
+
+; драйвер SD-CARD для NeoGS
+; +драйвер для MP3-декодера
+
+; Входные параметры общие:
+; HL-адрес загрузки в память
+; BCDE-32-х битный номер сектора
+; A-количество блоков (блок=512 байт)
+; только для многоблочной записи/чтении
+
+; Ошибки выдаваемые на выходе:
+; A=0-инициализация прошла успешно
+; A=1-карта не найдена или не ответила
+; A=2-карта защищена от записи
+; A=3-попытка записи в сектор 0 карты
+; A=0x80-карта перестала отвечать
+
+; общая точка входа для работы с SD картой
+		CALL CMP_INT
+		DI
+		EXX
+		PUSH HL				; сохранили HL'
+		PUSH DE				; сохранили DE'
+		LD HL,OK_SD
+		PUSH HL				; возврат на все OK
+		LD HL,0
+		ADD HL,SP			; сохранили стек
+		EX DE,HL
+		LD HL,ERR_SD			; адрес перехода при ошибке
+		EXX
+		PUSH HL
+		PUSH DE
+		ADD A,A
+		LD L,A
+		LD H,0
+		LD DE,TABL_SD
+		ADD HL,DE
+		EX AF,AF'
+		LD E,(HL)
+		INC HL
+		LD D,(HL)
+		EX DE,HL
+		POP DE
+		EX (SP),HL
+		RET
+
+OK_SD		EXX
+ERR_SD		EX DE,HL
+		LD SP,HL
+		POP DE
+		POP DE
+		POP HL
+		EXX
+		PUSH AF
+		LD A,(INT_MODE)
+		AND A
+		JR Z,ERR_SD1
+		EI
+ERR_SD1		POP AF
+		RET
+
+TABL_SD		DW SD_INIT		; 00 параметров не требует, на выходе A смотри выше первые 2 значения
+		DW SD__OFF		; 01 просто снятие выбора SD карты
+		DW RDSINGL		; 02 читать 1 сектор
+		DW RDMULTI		; 03 читать "A" секторов
+		DW EMPTY		; 04 писать 1 сектор
+		DW EMPTY		; 05 писать "A" секторов
+		DW AVTODET		; 06-автодетект
+		DW FREQNC		; 07-установка частоты
+
+ZAW003		CALL SD__OFF
+		LD A,1
+EMPTY		RET
+
+SD_INIT		CALL CS_HIGH
+		LD BC,SD_SEND
+		LD DE,0x20FF
+		OUT (C),E
+		DEC D
+		JR NZ,$-3
+		LD BC,SD_RSTR
+		XOR A
+		EX AF,AF'
+ZAW001		LD HL,CMD00
+		CALL OUTCOM
+		CALL IN_OOUT
+		EX AF,AF'
+		DEC A
+		JR Z,ZAW003
+		EX AF,AF'
+		DEC A
+		JR NZ,ZAW001
+		LD HL,CMD08
+		CALL OUTCOM
+		CALL IN_OOUT
+		IN H,(C)
+		NOP
+		IN H,(C)
+		NOP
+		IN H,(C)
+		NOP
+		IN H,(C)
+		LD HL,0
+		BIT 2,A
+		JR NZ,ZAW006
+		LD H,0x40
+ZAW006		LD A,CMD_55
+		CALL OUT_COM
+		CALL IN_OOUT
+		in (c) ;in f,(c)
+		in (c) ;in f,(c)
+		LD BC,SD_SEND
+		LD A,ACMD_41
+		OUT (C),A
+		NOP
+		OUT (C),H
+		NOP
+		OUT (C),L
+		NOP
+		OUT (C),L
+		NOP
+		OUT (C),L
+		LD A,0xFF
+		OUT (C),A
+		CALL IN_OOUT
+		AND A
+		JR NZ,ZAW006
+ZAW004		LD A,CMD_59
+		CALL OUT_COM
+		CALL IN_OOUT
+		AND A
+		JR NZ,ZAW004
+ZAW005		LD HL,CMD16
+		CALL OUTCOM
+		CALL IN_OOUT
+		AND A
+		JR NZ,ZAW005
+
+SD__OFF
+CS_HIGH		PUSH AF
+		LD A,M_SDNCS+M_SNCLR		; 0x81
+		OUT (SCTRL),A
+		POP AF
+		RET
+
+CS__LOW		PUSH AF
+		LD A,M_SDNCS			; 1
+		OUT (SCTRL),A
+		POP AF
+		RET
+
+OUTCOM		CALL CS__LOW
+		PUSH BC
+		LD BC,0x0600+SD_SEND
+		OTIR
+		POP BC
+		RET
+
+OUT_COM		PUSH BC
+		CALL CS__LOW
+		LD BC,SD_SEND
+		in (c) ;in f,(c)
+		in (c) ;in f,(c)
+		OUT (C),A
+		XOR A
+		OUT (C),A
+		NOP
+		OUT (C),A
+		NOP
+		OUT (C),A
+		NOP
+		OUT (C),A
+		DEC A
+		OUT (C),A
+		POP BC
+		RET
+
+SECM200		PUSH HL
+		PUSH DE
+		PUSH BC
+		PUSH AF
+		PUSH BC
+		LD A,CMD_58
+		LD BC,SD_RSTR
+		CALL OUT_COM
+		CALL IN_OOUT
+		INC A
+		JR NZ,SCM200
+		EXX
+		LD A,0x80
+		JP (HL)
+
+SCM200		IN A,(C)
+		NOP
+		IN H,(C)
+		NOP
+		IN H,(C)
+		NOP
+		IN H,(C)
+		BIT 6,A
+		POP HL
+		JR NZ,SECN200
+		EX DE,HL
+		ADD HL,HL
+		EX DE,HL
+		ADC HL,HL
+		LD H,L
+		LD L,D
+		LD D,E
+		LD E,0
+SECN200		POP AF
+		in (c) ;in f,(c)
+		in (c) ;in f,(c)
+		LD BC,SD_SEND
+		OUT (C),A
+		NOP
+		OUT (C),H
+		NOP
+		OUT (C),L
+		NOP
+		OUT (C),D
+		NOP
+		OUT (C),E
+		LD A,0xFF
+		OUT (C),A
+		POP BC
+		POP DE
+		POP HL
+		RET
+
+IN_OOUT		PUSH DE
+		LD DE,0x30FF
+IN_WAIT		IN A,(SD_RSTR)
+		CP E
+		JR NZ,IN_EXIT
+		DEC D
+		JR NZ,IN_WAIT
+IN_EXIT		POP DE
+		RET
+
+CMD00		DB 0x40,0x00,0x00,0x00,0x00,0x95	; GO_IDLE_STATE
+CMD08		DB 0x48,0x00,0x00,0x01,0xAA,0x87	; SEND_IF_COND
+CMD16		DB 0x50,0x00,0x00,0x02,0x00,0xFF	; SET_BLOCKEN
+
+; чтение одного сектора в память
+RD_SECT		PUSH BC
+		PUSH DE
+		LD BC,SD_RSTR
+		INIR
+		INIR
+		IN A,(C)			; снятие CRC16
+		NOP
+		IN A,(C)
+		POP DE
+		POP BC
+		RET
+
+; загрузка одного сектора в память
+RDSINGL		LD A,CMD_17
+		CALL SECM200
+.L1		CALL IN_OOUT
+		CP 0xFE
+		JR NZ,.L1
+		CALL RD_SECT
+.L2		CALL IN_OOUT
+		INC A
+		JR NZ,.L2
+		JP CS_HIGH
+
+RDMULTI		EX AF,AF'
+		LD A,CMD_18
+		CALL SECM200
+		EX AF,AF'
+.L1		EX AF,AF'
+.L3		CALL IN_OOUT
+		CP 0xFE
+		JR NZ,.L3
+		CALL RD_SECT
+		EX AF,AF'
+		DEC A
+		JR NZ,.L1
+		LD A,CMD_12
+		CALL OUT_COM
+.L2		CALL IN_OOUT
+		INC A
+		JR NZ,.L2
+		JP CS_HIGH
+
+; ожидание готовности SPI MP3 чипа
+NOPER
+	REPT 18
+		NOP
+	ENDM
+		RET
+
+AVTODET		IN A,(GSCFG0)
+		AND %11001111;0xCF
+		OUT (GSCFG0),A
+		LD D,A
+		CALL NOPER
+		IN A,(GSCFG0)
+		CP D
+		LD A,0
+		RET Z
+NO_MP3		LD A,0xFF
+		RET
+
+FREQNC		LD A,E
+		LD D,C_10MHZ			; 0x30
+		AND 3
+		JR Z,.L1
+		LD D,C_12MHZ			; 0x10
+		DEC A
+		JR Z,.L1
+		LD D,C_20MHZ			; 0x20
+		DEC A
+		JR Z,.L1
+		LD D,C_24MHZ			; 0
+.L1		IN A,(GSCFG0)
+		AND %11001111
+		OR D
+		OUT (GSCFG0),A
+		RET
+
+; глушим громкость MOD портов
+VOL_MOD		XOR A
+		OUT (VOL1),A
+		OUT (VOL2),A
+		OUT (VOL3),A
+		OUT (VOL4),A
+		OUT (VOL5),A
+		OUT (VOL6),A
+		OUT (VOL7),A
+		OUT (VOL8),A
+		RET
+
+CMP_INT		PUSH AF
+		LD A,R
+		JP PE,CMP_INT1
+		LD A,R
+CMP_INT1	LD A,0
+		JP PO,CMP_INT2
+		LD A,1
+CMP_INT2	LD (INT_MODE),A
+		POP AF
+		RET
