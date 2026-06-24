@@ -1,4 +1,4 @@
-Музыкальная карта NeoGS для ZXBUS     
+# Музыкальная карта NeoGS для ZXBUS     
 
 #### Музыкальная карта NeoGS для ZXBUS!
 
@@ -10,7 +10,8 @@
 
 _Автор фотографий: Алексей Курепин._
 
-[![NGS rev.C front](neogs_c_front_small.jpg)](http://nedopc.com/gs/neogs_c_front.jpg) [![NGS rev.C back](neogs_c_back_small.jpg)](http://nedopc.com/gs/neogs_c_back.jpg)  
+[![NGS rev.C front](https://raw.githubusercontent.com/aaydev/zxevo.ngs/main/photos/neogs_c_front.jpg)](https://github.com/aaydev/zxevo.ngs/blob/main/photos/neogs_c_front.jpg)
+[![NGS rev.C back](https://raw.githubusercontent.com/aaydev/zxevo.ngs/main/photos/neogs_c_back.jpg)](https://github.com/aaydev/zxevo.ngs/blob/main/photos/neogs_c_back.jpg)
 
 Звуковая плата **NeoGS** предназначена для проигрывания трекерной (MOD) и сжатой (MP3) музыки на Spectrum-совместимом компьютере оснащенным слотом ZXBUS.
 
